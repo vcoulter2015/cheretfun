@@ -1,0 +1,32 @@
+AlphaBucket commands:
+
+Upload function:
+If in my ~ directory:
+aws lambda create-function \
+--function-name vctestsns2 \
+--zip-file fileb://Documents/Lambda/vctestsns2.js.zip \
+--role arn:aws:iam::734781618062:role/lambda_basic_execution \
+--handler vctestsns2.handler \
+--runtime nodejs \
+--timeout 5 \
+--memory-size 256 \
+--description "VC test function" \
+--profile idsdev
+
+If in the same directory as the zip file:
+aws lambda create-function \
+--function-name vctestsns2 \
+--zip-file fileb://vctestsns2.js.zip \
+--role arn:aws:iam::734781618062:role/lambda_basic_execution \
+--handler vctestsns2.handler \
+--runtime nodejs \
+--timeout 5 \
+--memory-size 256 \
+--description "VC test function" \
+--profile idsdev
+
+After creating the function, I have to set up that the function is kicked off by publishing to the SNS topic named "vctest" -- the help said there was no API call to do this. (Is there a cli command?)
+
+Publish to SNS (= run the function)
+(Run this in the same directory as the message textfile)
+aws sns publish --topic-arn arn:aws:sns:us-west-2:734781618062:vctest --message file://msg2sns.txt

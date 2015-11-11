@@ -1,0 +1,5 @@
+{
+"Characters": "arnawssns",
+"SearchBucket": "integrityemr-vcoulter2",
+"SearchFile": "numbers1.txt"
+}

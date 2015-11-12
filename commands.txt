@@ -1,5 +1,8 @@
 AlphaBucket commands:
 
+zip vctestsns2 vctestsns2.js
+(This will/should update the zip file if it already exists.)
+
 Upload function:
 If in my ~ directory:
 aws lambda create-function \
@@ -16,7 +19,7 @@ aws lambda create-function \
 If in the same directory as the zip file:
 aws lambda create-function \
 --function-name vctestsns2 \
---zip-file fileb://vctestsns2.js.zip \
+--zip-file fileb://vctestsns2.zip \
 --role arn:aws:iam::734781618062:role/lambda_basic_execution \
 --handler vctestsns2.handler \
 --runtime nodejs \
@@ -25,7 +28,7 @@ aws lambda create-function \
 --description "VC test function" \
 --profile idsdev
 
-After creating the function, I have to set up that the function is kicked off by publishing to the SNS topic named "vctest" -- the help said there was no API call to do this. (Is there a cli command?)
+After creating the function, I have to set up that the function is kicked off by publishing to the SNS topic named "vctest" -- the help said there was no API call to do this. (Is there a cli command? Not that I could find. There is a cli command if the function is attached to a Kinesis or DynamoDB stream.)
 
 Publish to SNS (= run the function)
 (Run this in the same directory as the message textfile)

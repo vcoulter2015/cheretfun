@@ -1,0 +1,16 @@
+#!/bin/bash
+# Usage: ./zip-upload <js file name> <function name>
+zip $2 $1
+# If I don't need to do anything with S3, then arn:aws:iam::734781618062:role/lambda_basic_execution will work just fine.
+aws lambda create-function \
+--function-name $2 \
+--zip-file fileb://$2.zip \
+--role arn:aws:iam::734781618062:role/lambda_s3_exec_role \
+--handler $2.handler \
+--runtime nodejs \
+--timeout 5 \
+--memory-size 256 \
+--description "Vi test function" \
+--profile idsdev
+echo "Add the source event."
+echo

@@ -1,11 +1,36 @@
 /**
  * Created by vcoulter on 11/12/15.
  */
-console.log('Loading function version 1440');
+console.log('Loading function.');
 var aws = require('aws-sdk');
 var s3 = new aws.S3({ apiVersion: '2006-03-01' });
 
-var x = 0; // This is sort of a codepath tracker.
+// Module-level variables.
+var gContext;
+var gStream;
+var gReadBlockCount = 0;
+
+/*
+// I was using this for the data event until
+// http://neethack.com/2013/12/understand-node-stream-what-i-learned-when-fixing-aws-sdk-bug/
+// pointed out that there's a readable event, see it below.
+function gotData(data) {
+    gReadBlockCount++;
+    console.log("Read data: " + data.toString());
+}
+*/
+function gotReadable() {
+    gReadBlockCount++;
+    var data = gStream.read();
+    console.log("Read data: " + data.toString());
+    }
+
+function endOfData() {
+    console.log("Reached end of file after " + gReadBlockCount + " data blocks read.");
+    // Now that I've done that, how much time do I have left?
+    console.log("Time remaining " + gContext.getRemainingTimeInMillis() + " ms");
+    gContext.succeed();
+}
 
 exports.handler = function(event, context) {
     // console.log('Received event:', JSON.stringify(event, null, 2));
@@ -33,7 +58,6 @@ exports.handler = function(event, context) {
          * check if CharacterBucket and CharacterFile are set and grab them,
          * then hafta load the characters given that bucket & key.
          */
-        x++;
 
         if (!characters) {
             console.log("No \"Characters\" value given.");
@@ -61,36 +85,29 @@ exports.handler = function(event, context) {
                     context.fail("Could not retrieve file to search. Check whether it exists.");
                 } else {
                     console.log("Successfully retrieved object: " + JSON.stringify(fileParams, null, 2));
-                    x += 10;
+                    // Do some more setup that wasn't done till now to save trouble in case of errors.
+                    gContext = context;
+
                     // 3. Parse the characters
-                    //  (Waited til now to do this in case of errors.)
                     // TODO
 
                     // 4. Work thru names.
-                    // stream = s3Request1.createReadStream();
+                    // I tried calling s3Request1.createReadStream(), but that resulted in this else block being invoked over & over.
                     stream = s3.getObject(fileParams).createReadStream();
+                    gStream = stream;
 
                     stream.on('error', function(err) {
                         console.log("While reading data, received error: ", err);
                         context.fail("Error while reading file.");
                     });
 
-                    stream.on('end', function() {
-                        console.log("Reached end of the file.");
-                    });
+                    stream.on('end', endOfData);
+                    stream.on('readable', gotReadable);
+                    //stream.on('data', gotData(data));
 
-                    stream.on('data', function(data) {
-                        console.log("Read data: " + data);
-                    });
-
-
-                    context.succeed();
                 } // end else getObject() worked.
             });
         }  // end if message had necessary configuration.
     }  // end if we could parse into message.
-
-    // Now that I've done that, how much time do I have left?
-    console.log("Time remaining " + context.getRemainingTimeInMillis() + " ms, x = " + x);
 
 };

@@ -1,5 +1,5 @@
 {
 "Characters": "arnawssns",
 "SearchBucket": "integrityemr-vcoulter",
-"SearchFile": "short-names.txt"
+"SearchFile": "names.txt"
 }

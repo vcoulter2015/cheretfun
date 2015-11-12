@@ -32,4 +32,7 @@ After creating the function, I have to set up that the function is kicked off by
 
 Publish to SNS (= run the function)
 (Run this in the same directory as the message textfile)
+In region US-West-2:
 aws sns publish --topic-arn arn:aws:sns:us-west-2:734781618062:vctest --message file://msg2sns.txt
+In regious US-East-1:
+aws sns publish --topic-arn arn:aws:sns:us-east-1:734781618062:vceast --message file://msg2sns.txt --profile idsdev

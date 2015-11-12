@@ -1,5 +1,7 @@
 #!/bin/bash
 # Usage: ./zip-upload <js file name> <function name>
+echo "DID YOU DELETE THE EXISTING FUNCTION FIRST?"
+echo
 zip $2 $1
 # If I don't need to do anything with S3, then arn:aws:iam::734781618062:role/lambda_basic_execution will work just fine.
 aws lambda create-function \
@@ -12,5 +14,6 @@ aws lambda create-function \
 --memory-size 256 \
 --description "Vi test function" \
 --profile idsdev
-echo "Add the source event."
+echo
+echo "ADD THE SOURCE EVENT."
 echo

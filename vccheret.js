@@ -39,6 +39,7 @@ function buildBucket(charList) {
         // (I'm curious to see how much work it would save me to disallow them.)
         if (65 <= ch && ch <= 90) {
             // Assumption: We will not have strings with more than 255 occurrences of a single letter.
+            // (If this needs changed, find all the Uint8ClampedArray() declarations and upgrade them.)
             if (bucket[ch - 65] == 255) {
                 gContext.fail("Cannot process!! More than 255 occurrences of " + ch + " found in '" + charList + "'!!");
                 return null;
@@ -61,7 +62,6 @@ function doBucketsMatch(b1, b2) {
     for (var i = 25; i > 0; i--)
         if (b1[i] != b2[i])
             return false;
-
     // Look, we're still here!
     return true;
 }
@@ -113,7 +113,6 @@ NameClass.prototype.toString = function() {
     return this.name + " (" + this.length + ") " + bucketToString(this.bucket);
 }
 
-
 /**** Name Search Functions *****/
 
 /* Go thru the string and build objects with the names we need.
@@ -141,11 +140,6 @@ function preProcessNames(fileData) {
                 // Could this bucket be in the solution?
                 if (nameObj.length < gTotalCharCount && isBucketContained(nameObj.bucket, gaCharacters))
                     nameList.push(nameObj);
-            /* TODO - debugging - did we get any names with a capital in the middle?
-             * One of my theories about not reading in as many names as I tho't I ought to was that
-             * gotData() was mashing names together, so I tested it on a file of all capital case names.             */
-            /*if (name.substring(1) != name.substring(1).toLowerCase())
-                console.log("Received '" + name + "', bucket " + bucketToString(nameObj.bucket));*/
         } // end if name actually has a value.
         i = nextNewlinePos + 1;
     } while (nextNewlinePos > -1);
@@ -157,11 +151,11 @@ function findNames() {
 
     // Do not actually use split() in production, as convenient as it is,
     // because we don't want to keep all the names. Some we'll know up right away aren't part of the solution.
-     var aNames = gFileData.split("\n");
-     console.log("In findNames, received " + gFileData.length + " characters split into " + aNames.length + " names.");
+    // var aNames = gFileData.split("\n");
+    // console.log("In findNames, received " + gFileData.length + " characters split into " + aNames.length + " names.");
     //console.log("In findNames, received " + gFileData.length + " characters");
     // TODO - after aNames is set, will setting gFileData to "" free up all that memory?
-    /*var*/ aNames = preProcessNames(gFileData);
+    var aNames = preProcessNames(gFileData);
     gFileData = "";
     console.log("In findNames, built list of " + aNames.length + " items.");
 
@@ -176,13 +170,9 @@ function findNames() {
     for (n = 0; n < aNames.length; n++) {
         nLength = aNames[n].length;
         nBucket = aNames[n].bucket;
-        /*if (aNames[n].name.substr(0, 1) == "K")
-            console.log("At outer loop " + n + " searching with " + aNames[n].toString());*/
         for (i = n+1; i < aNames.length; i++) {
             if (nLength + aNames[i].length == gTotalCharCount) {
                 combined = combineBuckets(nBucket, aNames[i].bucket);
-                if (aNames[i].name.substr(0, 1) == "K" && aNames[n].name.substr(0, 1) == "K")
-                    console.log("Outer loop " + n + ", inner loop " + i + ", checking " + aNames[i].toString() + " with combined bucket " + bucketToString(combined));
                 if (doBucketsMatch(gaCharacters, combined)) {
                     matchFound = true;
                     console.log("MATCH FOUND!");
@@ -224,7 +214,7 @@ function gotData(data) {
     // console.log("Read data from " + sData.substr(0, 30) + " ... to ... " + sData.substring(sData.length-30));
     // console.log("gSplitName is now: '" + gSplitName + "'");
     // TODO - instead of doing it this way, can I start processing names (asynchronously)?
-    // The problems I would have to navigate around is that the array has to be thread-safe
+    // The problems I would have to navigate around are that the array has to be thread-safe
     // and that I want to send whole names, not this split-name business, to be pre-processed.
     gFileData += sData;
 }
@@ -235,12 +225,11 @@ function endOfData() {
         //console.log("endOfData: gSplitName was '" + gSplitName + "', appending to gFileData.");
         gFileData += "\n" + gSplitName;
     }
-    //console.log(gFileData.substring(13000,15000) + " ... " + gFileData.substring(26000,28000));
     console.log("Reached end of file after " + gReadBlockCount + " data blocks read.");
     // Now that I've done that, how much time do I have left?
     console.log("Time remaining " + gContext.getRemainingTimeInMillis() + " ms");
 
-    // TODO - call this asynchronously?
+    // TODO - call this asynchronously? (or maybe it automatically is?)
     findNames();
 }
 

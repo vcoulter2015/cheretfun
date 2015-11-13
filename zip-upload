@@ -10,7 +10,7 @@ aws lambda create-function \
 --role arn:aws:iam::734781618062:role/lambda_s3_exec_role \
 --handler $2.handler \
 --runtime nodejs \
---timeout 45 \
+--timeout 210 \
 --memory-size 256 \
 --description "Vi test function" \
 --profile idsdev

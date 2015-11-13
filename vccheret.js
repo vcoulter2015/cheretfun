@@ -11,10 +11,10 @@ var gContext;
 var gStream;
 var gReadBlockCount = 0;
 var gFileData = "";
-//  B. String processing
- // TODO - will TypedArray be more efficient?
-var gaCharacters = new Array(26);
 var gSplitName = "";
+//  B. String processing
+var gaCharacters;
+var gTotalCharCount = 0;
 
 /**** Bucket Functions *****/
 
@@ -27,27 +27,24 @@ function buildBucket(charList) {
         console.log("buildBucket passed '" + charList.toString() + "' which is not a string.");
         return null;
     }
-
     // We're still here, so yes.
-    // var bucket = new Array(26);
+    var bucket = new Uint8ClampedArray(26);
     var chars = charList.toUpperCase();
     var ch;
-    // Every element of bucket needs initialized to 0. This might be the fastest way to do that.
-    var bucket = [0,0,0,0,0,
-        0,0,0,0,0,
-        0,0,0,0,0,
-        0,0,0,0,0,
-        0,0,0,0,0,0];
-
     for (var i = 0; i < chars.length; i++) {
         ch = chars.charCodeAt(i);
         // TODO - important - what to do if non-alphabetic characters are found?
         // If I want to disallow such strings, return null;
         // If I want to just ignore them, comment out the else.
         // (I'm curious to see how much work it would save me to disallow them.)
-        if (65 <= ch && ch <= 90)
+        if (65 <= ch && ch <= 90) {
+            // Assumption: We will not have strings with more than 255 occurrences of a single letter.
+            if (bucket[ch - 65] == 255) {
+                gContext.fail("Cannot process!! More than 255 occurrences of " + ch + " found in '" + charList + "'!!");
+                return null;
+            }
             bucket[ch - 65]++;
-        else
+        } else
             return null;
     } // end for
     return bucket;
@@ -92,23 +89,110 @@ function isBucketContained(smallerBucket, biggerBucket) {
 
 // Given two buckets, return a bucket with the corresponding elements added together.
 function combineBuckets(b1, b2) {
-    var sumb = new Array(26);
-    for (var i = 0; i > 26; i--)
+    var sumb = new Uint8ClampedArray(26);
+    for (var i = 0; i < 26; i++)
         sumb[i] = b1[i] + b2[i];
     return sumb;
 }
 
+// Just for debugging: Uint8ClampedArray needs a better toString() method.
+function bucketToString(b) {
+    if (!b) return "";
+    var p = new Array(26);
+    for (var i = 0; i < 26; i++)
+        p[i] = b[i];
+    return "u8c" + p.toString();
+}
+
+var NameClass = function (name) {
+    this.name = name;
+    this.length = name.length;
+    this.bucket = buildBucket(name);
+}
+NameClass.prototype.toString = function() {
+    return this.name + " (" + this.length + ") " + bucketToString(this.bucket);
+}
+
+
 /**** Name Search Functions *****/
+
+/* Go thru the string and build objects with the names we need.
+    Returns an Array of NameClass objects.
+ */
+function preProcessNames(fileData) {
+
+    var i = 0;
+    var nextNewlinePos = -1;
+    var name = "";
+    var nameObj = null;
+    var nameList = new Array();
+
+    do {
+        nextNewlinePos = fileData.indexOf("\n", i);
+        if (nextNewlinePos > -1)
+            name = fileData.substring(i, nextNewlinePos).trim();
+        else    // go to end of line
+            name = fileData.substring(i).trim();
+        // Check if we got 2 newlines in a row or something like that.
+        if (name.length > 0) {
+            nameObj = new NameClass(name);
+            // Did the name get a bucket?
+            if (nameObj.bucket)
+                // Could this bucket be in the solution?
+                if (nameObj.length < gTotalCharCount && isBucketContained(nameObj.bucket, gaCharacters))
+                    nameList.push(nameObj);
+            /* TODO - debugging - did we get any names with a capital in the middle?
+             * One of my theories about not reading in as many names as I tho't I ought to was that
+             * gotData() was mashing names together, so I tested it on a file of all capital case names.             */
+            /*if (name.substring(1) != name.substring(1).toLowerCase())
+                console.log("Received '" + name + "', bucket " + bucketToString(nameObj.bucket));*/
+        } // end if name actually has a value.
+        i = nextNewlinePos + 1;
+    } while (nextNewlinePos > -1);
+
+    return nameList;
+}
 
 function findNames() {
 
-    var aNames = gFileData.split("\n");
-    console.log("In findNames, received " + gFileData.length + " characters split into " + aNames.length + " names.");
+    // Do not actually use split() in production, as convenient as it is,
+    // because we don't want to keep all the names. Some we'll know up right away aren't part of the solution.
+     var aNames = gFileData.split("\n");
+     console.log("In findNames, received " + gFileData.length + " characters split into " + aNames.length + " names.");
+    //console.log("In findNames, received " + gFileData.length + " characters");
     // TODO - after aNames is set, will setting gFileData to "" free up all that memory?
+    /*var*/ aNames = preProcessNames(gFileData);
     gFileData = "";
+    console.log("In findNames, built list of " + aNames.length + " items.");
 
+    var n = 0;
+    var i = 0;
+    var nLength = 0;
+    var nBucket;
+    var combined;
+    var matchFound = false;
 
-
+    // Multiple answers are allowed, so go thru the whole dataset.
+    for (n = 0; n < aNames.length; n++) {
+        nLength = aNames[n].length;
+        nBucket = aNames[n].bucket;
+        /*if (aNames[n].name.substr(0, 1) == "K")
+            console.log("At outer loop " + n + " searching with " + aNames[n].toString());*/
+        for (i = n+1; i < aNames.length; i++) {
+            if (nLength + aNames[i].length == gTotalCharCount) {
+                combined = combineBuckets(nBucket, aNames[i].bucket);
+                if (aNames[i].name.substr(0, 1) == "K" && aNames[n].name.substr(0, 1) == "K")
+                    console.log("Outer loop " + n + ", inner loop " + i + ", checking " + aNames[i].toString() + " with combined bucket " + bucketToString(combined));
+                if (doBucketsMatch(gaCharacters, combined)) {
+                    matchFound = true;
+                    console.log("MATCH FOUND!");
+                    console.log(aNames[n].name + " and " + aNames[i].name);
+                }
+            }
+        }
+    }
+    if (!matchFound)
+        console.log("No match found.");
     gContext.succeed();
 }
 
@@ -130,7 +214,7 @@ function gotData(data) {
     // gSplitName will contain the first bit of the first name we read (if there is such a break).
     var sData = gSplitName + data.toString();
     var lastLineBreakPos = sData.lastIndexOf("\n");
-    console.log("lastLineBreakPos is: " + lastLineBreakPos + " in data length " + sData.length);
+    // console.log("lastLineBreakPos is: " + lastLineBreakPos + " in data length " + sData.length);
     if (lastLineBreakPos > -1 && lastLineBreakPos < sData.length - 1) {
         gSplitName = sData.substring(lastLineBreakPos+1);
         sData = sData.substring(0, lastLineBreakPos+1); // include the \n
@@ -138,15 +222,17 @@ function gotData(data) {
         gSplitName = "";
     }
     // console.log("Read data from " + sData.substr(0, 30) + " ... to ... " + sData.substring(sData.length-30));
-    console.log("gSplitName is now: '" + gSplitName + "'");
+    // console.log("gSplitName is now: '" + gSplitName + "'");
     // TODO - instead of doing it this way, can I start processing names (asynchronously)?
+    // The problems I would have to navigate around is that the array has to be thread-safe
+    // and that I want to send whole names, not this split-name business, to be pre-processed.
     gFileData += sData;
 }
 
 function endOfData() {
     // If there was any split name, tag it on the end.
     if (gSplitName) {
-        console.log("endOfData: gSplitName was '" + gSplitName + "', appending to gFileData.");
+        //console.log("endOfData: gSplitName was '" + gSplitName + "', appending to gFileData.");
         gFileData += "\n" + gSplitName;
     }
     //console.log(gFileData.substring(13000,15000) + " ... " + gFileData.substring(26000,28000));
@@ -215,24 +301,29 @@ exports.handler = function(event, context) {
                     // Do a little more setup here now that we've successfully gotten the file.
                     gContext = context;
                     // Parse the characters into a bucket.
+                    gTotalCharCount = characters.length;
                     gaCharacters = buildBucket(characters);
-                    console.log("Looking for characters: " + gaCharacters.toString());
+                    // It is remotely possible that the last call failed.
+                    if (!gaCharacters) {
+                        context.fail("Could not process Characters. Make sure all are alphabetic. If total length is more than 255, upgrade this function.");
+                    } else {
+                        console.log("Looking for characters: " + bucketToString(gaCharacters));
 
-                    // 3. Read names.
-                    // I tried calling s3Request1.createReadStream(), but that resulted in this else block being invoked over & over.
-                    stream = s3.getObject(fileParams).createReadStream();
-                    gStream = stream;
+                        // 3. Read names.
+                        // I tried calling s3Request1.createReadStream(), but that resulted in this else block being invoked over & over.
+                        stream = s3.getObject(fileParams).createReadStream();
+                        gStream = stream;
 
-                    stream.on('error', function(err) {
-                        console.log("While reading data, received error: ", err);
-                        context.fail("Error while reading file.");
-                    });
+                        stream.on('error', function (err) {
+                            console.log("While reading data, received error: ", err);
+                            context.fail("Error while reading file.");
+                        });
 
-                    stream.on('end', endOfData);
-                    // On readable vs data events, see comment near their declarations.
-                    //stream.on('readable', gotReadable);
-                    stream.on('data', gotData);
-
+                        stream.on('end', endOfData);
+                        // On readable vs data events, see comment near their declarations.
+                        //stream.on('readable', gotReadable);
+                        stream.on('data', gotData);
+                    }  // end else buildBucket(characters) worked.
                 } // end else getObject() worked.
             });
         }  // end if message had necessary configuration.

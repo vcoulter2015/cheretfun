@@ -10,10 +10,15 @@ var s3 = new aws.S3({ apiVersion: '2006-03-01' });
 var gContext;
 var gStream;
 var gReadBlockCount = 0;
+var gFileData = "";
 //  B. String processing
+ // TODO - will TypedArray be more efficient?
 var gaCharacters = new Array(26);
 var gSplitName = "";
 
+/**** Bucket Functions *****/
+
+// Given a string, return a 26-element array representing the character counts.
 function buildBucket(charList) {
 
     // Did the caller actually pass us any string data?
@@ -48,6 +53,66 @@ function buildBucket(charList) {
     return bucket;
 }
 
+// Given two buckets (arrays of 26 elements), do they have the same values?
+// Does not type check its arguments; caller is trusted.
+function doBucketsMatch(b1, b2) {
+
+    // I suspect that checking if toString() produces the same value for each arg,
+    // that would probably produce accurate results, but it probably wouldn't be as efficient.
+
+    // Optimization: start from the end because the letters Q and U-Z are less often used in English.
+    for (var i = 25; i > 0; i--)
+        if (b1[i] != b2[i])
+            return false;
+
+    // Look, we're still here!
+    return true;
+}
+
+/* Given two buckets (arrays of 26 elements), does the smallerBucket argument have
+ * smaller values than largerBucket for each corresponding element? If false, then
+ * smallerBucket can't fit in largerBucket.
+ * Will also return false if smallerBucket has all the same values as largerBucket
+ * (because anything added to smallerBucket will be bigger than largerBucket).
+ */
+function isBucketContained(smallerBucket, biggerBucket) {
+    var bucketsMatch = true;
+    // Optimization: start from the end because the letters Q and U-Z are less often used in English.
+    for (var i = 25; i > 0; i--)
+        if (smallerBucket[i] > biggerBucket[i])
+            return false;
+        else if (smallerBucket[i] < biggerBucket[i])
+            bucketsMatch = false;
+
+    /* If we're still here, then all the elements of smallerBucket were <= corresponding
+     * element in biggerBucket. If they were all equal, then bucketsMatch is still true,
+     * and we want to indicate if the smallerBucket is actually *smaller*. */
+    return !bucketsMatch;
+}
+
+// Given two buckets, return a bucket with the corresponding elements added together.
+function combineBuckets(b1, b2) {
+    var sumb = new Array(26);
+    for (var i = 0; i > 26; i--)
+        sumb[i] = b1[i] + b2[i];
+    return sumb;
+}
+
+/**** Name Search Functions *****/
+
+function findNames() {
+
+    var aNames = gFileData.split("\n");
+    console.log("In findNames, received " + gFileData.length + " characters split into " + aNames.length + " names.");
+    // TODO - after aNames is set, will setting gFileData to "" free up all that memory?
+    gFileData = "";
+
+
+
+    gContext.succeed();
+}
+
+/**** Event Handling Functions *****/
 
 // There are two data events, readable and data.
 // http://neethack.com/2013/12/understand-node-stream-what-i-learned-when-fixing-aws-sdk-bug/
@@ -65,28 +130,37 @@ function gotData(data) {
     // gSplitName will contain the first bit of the first name we read (if there is such a break).
     var sData = gSplitName + data.toString();
     var lastLineBreakPos = sData.lastIndexOf("\n");
+    console.log("lastLineBreakPos is: " + lastLineBreakPos + " in data length " + sData.length);
     if (lastLineBreakPos > -1 && lastLineBreakPos < sData.length - 1) {
         gSplitName = sData.substring(lastLineBreakPos+1);
-        sData = sData.substring(0, lastLineBreakPos);
+        sData = sData.substring(0, lastLineBreakPos+1); // include the \n
     } else {
         gSplitName = "";
     }
-    console.log("Read data: " + sData);
+    // console.log("Read data from " + sData.substr(0, 30) + " ... to ... " + sData.substring(sData.length-30));
+    console.log("gSplitName is now: '" + gSplitName + "'");
+    // TODO - instead of doing it this way, can I start processing names (asynchronously)?
+    gFileData += sData;
 }
 
-
 function endOfData() {
+    // If there was any split name, tag it on the end.
+    if (gSplitName) {
+        console.log("endOfData: gSplitName was '" + gSplitName + "', appending to gFileData.");
+        gFileData += "\n" + gSplitName;
+    }
+    //console.log(gFileData.substring(13000,15000) + " ... " + gFileData.substring(26000,28000));
     console.log("Reached end of file after " + gReadBlockCount + " data blocks read.");
     // Now that I've done that, how much time do I have left?
     console.log("Time remaining " + gContext.getRemainingTimeInMillis() + " ms");
-    // TODO - this is not end of processing in the finished program.
-    gContext.succeed();
+
+    // TODO - call this asynchronously?
+    findNames();
 }
 
 exports.handler = function(event, context) {
     // console.log('Received event:', JSON.stringify(event, null, 2));
     var message = null;
-    var characters = "";
     var searchBucket = "";
     var searchKey = "";
     var timeNow = new Date();
@@ -98,8 +172,9 @@ exports.handler = function(event, context) {
         context.fail("Did not receive a JSON-parseable message.");
     }
 
-    // N.B. context.fail() reports an error message, but doesn't stop execution.
-    if (message != null) {
+    // N.B. context.fail() reports an error message, but doesn't stop execution,
+    // so check if message has a value.
+    if (message) {
         // 1. Get the data we need
         characters = message.Characters;
         searchBucket = message.SearchBucket;
@@ -136,14 +211,14 @@ exports.handler = function(event, context) {
                     context.fail("Could not retrieve file to search. Check whether it exists.");
                 } else {
                     console.log("Successfully retrieved object: " + JSON.stringify(fileParams, null, 2));
-                    // Do some more setup that wasn't done till now to save trouble in case of errors.
-                    gContext = context;
 
-                    // 3. Parse the characters
+                    // Do a little more setup here now that we've successfully gotten the file.
+                    gContext = context;
+                    // Parse the characters into a bucket.
                     gaCharacters = buildBucket(characters);
                     console.log("Looking for characters: " + gaCharacters.toString());
 
-                    // 4. Work thru names.
+                    // 3. Read names.
                     // I tried calling s3Request1.createReadStream(), but that resulted in this else block being invoked over & over.
                     stream = s3.getObject(fileParams).createReadStream();
                     gStream = stream;

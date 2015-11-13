@@ -1,5 +1,4 @@
 .*
 *.txt
 !commands.txt
-!msg2sns.txt
 *.zip

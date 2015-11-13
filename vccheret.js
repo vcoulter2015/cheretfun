@@ -2,33 +2,84 @@
  * Created by vcoulter on 11/12/15.
  */
 console.log('Loading function.');
+// Module-level declarations.
 var aws = require('aws-sdk');
 var s3 = new aws.S3({ apiVersion: '2006-03-01' });
 
-// Module-level variables.
+//  A. File processing
 var gContext;
 var gStream;
 var gReadBlockCount = 0;
+//  B. String processing
+var gaCharacters = new Array(26);
+var gSplitName = "";
 
-/*
-// I was using this for the data event until
+function buildBucket(charList) {
+
+    // Did the caller actually pass us any string data?
+    if (!charList) return null;
+    if ('string' !== (typeof charList)) {
+        console.log("buildBucket passed '" + charList.toString() + "' which is not a string.");
+        return null;
+    }
+
+    // We're still here, so yes.
+    // var bucket = new Array(26);
+    var chars = charList.toUpperCase();
+    var ch;
+    // Every element of bucket needs initialized to 0. This might be the fastest way to do that.
+    var bucket = [0,0,0,0,0,
+        0,0,0,0,0,
+        0,0,0,0,0,
+        0,0,0,0,0,
+        0,0,0,0,0,0];
+
+    for (var i = 0; i < chars.length; i++) {
+        ch = chars.charCodeAt(i);
+        // TODO - important - what to do if non-alphabetic characters are found?
+        // If I want to disallow such strings, return null;
+        // If I want to just ignore them, comment out the else.
+        // (I'm curious to see how much work it would save me to disallow them.)
+        if (65 <= ch && ch <= 90)
+            bucket[ch - 65]++;
+        else
+            return null;
+    } // end for
+    return bucket;
+}
+
+
+// There are two data events, readable and data.
 // http://neethack.com/2013/12/understand-node-stream-what-i-learned-when-fixing-aws-sdk-bug/
-// pointed out that there's a readable event, see it below.
+// talks about the differences between them, but 2 years later, they seem to do basically the same thing.
+/*
+ function gotReadable() {
+ gReadBlockCount++;
+ var data = gStream.read().toString();
+ console.log("Read data: " + data);
+ }
+ */
 function gotData(data) {
     gReadBlockCount++;
-    console.log("Read data: " + data.toString());
-}
-*/
-function gotReadable() {
-    gReadBlockCount++;
-    var data = gStream.read();
-    console.log("Read data: " + data.toString());
+    // Data we receive may be broken up mid-name. Save the broken pieces.
+    // gSplitName will contain the first bit of the first name we read (if there is such a break).
+    var sData = gSplitName + data.toString();
+    var lastLineBreakPos = sData.lastIndexOf("\n");
+    if (lastLineBreakPos > -1 && lastLineBreakPos < sData.length - 1) {
+        gSplitName = sData.substring(lastLineBreakPos+1);
+        sData = sData.substring(0, lastLineBreakPos);
+    } else {
+        gSplitName = "";
     }
+    console.log("Read data: " + sData);
+}
+
 
 function endOfData() {
     console.log("Reached end of file after " + gReadBlockCount + " data blocks read.");
     // Now that I've done that, how much time do I have left?
     console.log("Time remaining " + gContext.getRemainingTimeInMillis() + " ms");
+    // TODO - this is not end of processing in the finished program.
     gContext.succeed();
 }
 
@@ -89,7 +140,8 @@ exports.handler = function(event, context) {
                     gContext = context;
 
                     // 3. Parse the characters
-                    // TODO
+                    gaCharacters = buildBucket(characters);
+                    console.log("Looking for characters: " + gaCharacters.toString());
 
                     // 4. Work thru names.
                     // I tried calling s3Request1.createReadStream(), but that resulted in this else block being invoked over & over.
@@ -102,8 +154,9 @@ exports.handler = function(event, context) {
                     });
 
                     stream.on('end', endOfData);
-                    stream.on('readable', gotReadable);
-                    //stream.on('data', gotData(data));
+                    // On readable vs data events, see comment near their declarations.
+                    //stream.on('readable', gotReadable);
+                    stream.on('data', gotData);
 
                 } // end else getObject() worked.
             });

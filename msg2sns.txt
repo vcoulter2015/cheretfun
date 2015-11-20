@@ -1,5 +1,5 @@
 {
-"Characters": "abeeehikkllmnrty",
+"Characters": "aabccdhiikknorruwz",
 "SearchBucket": "integrityemr-vcoulter",
-"SearchFile": "names.txt"
+"SearchFile": "names-10M-A.txt"
 }

@@ -35,4 +35,4 @@ Publish to SNS (= run the function)
 In region US-West-2:
 aws sns publish --topic-arn arn:aws:sns:us-west-2:734781618062:vctest --message file://msg2sns.txt
 In regious US-East-1:
-aws sns publish --topic-arn arn:aws:sns:us-east-1:734781618062:vceast --message file://msg2sns.txt --profile idsdev
+aws sns publish --topic-arn arn:aws:sns:us-east-1:734781618062:vceasttest --message file://msg2sns.txt --profile idsdev

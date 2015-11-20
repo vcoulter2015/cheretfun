@@ -15,6 +15,8 @@ var gSplitName = "";
 //  B. String processing
 var gaCharacters;
 var gTotalCharCount = 0;
+// C. Searching
+var gTotalMatches = 0;
 
 /**** Bucket Functions *****/
 
@@ -157,7 +159,7 @@ function findNames() {
     // TODO - after aNames is set, will setting gFileData to "" free up all that memory?
     var aNames = preProcessNames(gFileData);
     gFileData = "";
-    console.log("In findNames, built list of " + aNames.length + " items.");
+    console.log("Preprocessing built list of " + aNames.length + " items.");
 
     var n = 0;
     var i = 0;
@@ -175,7 +177,8 @@ function findNames() {
                 combined = combineBuckets(nBucket, aNames[i].bucket);
                 if (doBucketsMatch(gaCharacters, combined)) {
                     matchFound = true;
-                    console.log("MATCH FOUND!");
+                    gTotalMatches++;
+                    console.log("MATCH FOUND! " + gTotalMatches + " so far.");
                     console.log(aNames[n].name + " and " + aNames[i].name);
                 }
             }
